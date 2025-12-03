@@ -3,7 +3,7 @@ import {
   ShoppingCart, Plus, Minus, Trash2, Send, CheckCircle, ChefHat, 
   Flame, Utensils, LayoutDashboard, Package, DollarSign, 
   BarChart3, PieChart as PieChartIcon, Calendar, History, ArrowLeft, 
-  UploadCloud, FileSpreadsheet, Pencil, Clock, Receipt, AlertTriangle, Edit, HelpCircle, Copy
+  UploadCloud, FileSpreadsheet, Pencil, Clock, Receipt, AlertTriangle, Edit, Settings
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
@@ -68,8 +68,9 @@ const calculateItemTotal = (dish: Dish, addons: Record<string, number>) => {
 };
 
 // --- Google API Config ---
-const GOOGLE_CLIENT_ID = "808023774748-nlvgh7givl1ph5h611e0hpfn1gggtqqe.apps.googleusercontent.com"; 
-const GOOGLE_API_KEY = "AIzaSyB8hNoU8uEojAgIFACQ3J-g0r7I4-lvxfg"; 
+// Default fallback keys (can be overridden by user settings)
+const DEFAULT_CLIENT_ID = "808023774748-nlvgh7givl1ph5h611e0hpfn1gggtqqe.apps.googleusercontent.com"; 
+const DEFAULT_API_KEY = ""; 
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
@@ -920,37 +921,44 @@ const AdminDashboard: React.FC<{
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [tokenClient, setTokenClient] = useState<any>(null);
-  const [showGoogleHelp, setShowGoogleHelp] = useState(false);
-  const currentOrigin = window.location.origin;
+  
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsClientId, setSettingsClientId] = useState(() => localStorage.getItem('google_client_id') || DEFAULT_CLIENT_ID);
+  const [settingsApiKey, setSettingsApiKey] = useState(() => localStorage.getItem('google_api_key') || DEFAULT_API_KEY);
 
   useEffect(() => {
     const initGoogleApi = () => {
       if (window.google && window.google.accounts && window.gapi) {
         setTokenClient(window.google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
+          client_id: settingsClientId,
           scope: SCOPES,
           callback: '', 
         }));
         window.gapi.load('client', async () => {
-          await window.gapi.client.init({
-             apiKey: GOOGLE_API_KEY,
-             discoveryDocs: [DISCOVERY_DOC],
-          });
+          try {
+            await window.gapi.client.init({
+               apiKey: settingsApiKey,
+               discoveryDocs: [DISCOVERY_DOC],
+            });
+          } catch(e) {
+             console.error("GAPI Init Error:", e);
+          }
         });
       }
     };
     const timer = setTimeout(initGoogleApi, 1500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [settingsClientId, settingsApiKey]);
+
+  const saveSettings = () => {
+    localStorage.setItem('google_client_id', settingsClientId);
+    localStorage.setItem('google_api_key', settingsApiKey);
+    setIsSettingsOpen(false);
+    window.location.reload(); // Reload to re-init API
+  };
 
   const handleExportToGoogle = async () => {
-    if (!tokenClient && GOOGLE_CLIENT_ID.includes("YOUR_CLIENT_ID")) {
-       alert("請在程式碼中設定 GOOGLE_CLIENT_ID 才能啟用真實上傳功能。\n目前為模擬模式。");
-       setIsExporting(true);
-       setTimeout(() => { setIsExporting(false); alert("模擬上傳成功！"); }, 1500);
-       return;
-    }
-    
     if (!tokenClient) {
         alert("Google API 尚未載入完成或設定錯誤");
         return;
@@ -966,18 +974,15 @@ const AdminDashboard: React.FC<{
         return;
       }
       try {
-        // --- 關鍵修復開始 ---
-        // 重要：必須顯式設定 Token 才能擁有寫入權限
+        // Explicitly set the access token for GAPI calls
         if (window.gapi.client) {
             window.gapi.client.setToken(resp);
         }
-        // --- 關鍵修復結束 ---
         
         await createAndPopulateSheet();
         alert("成功建立試算表並上傳資料！");
       } catch (err: any) {
         console.error(err);
-        // 優化錯誤顯示
         const msg = err.result?.error?.message || err.message || "未知錯誤";
         alert(`上傳失敗，請檢查控制台錯誤訊息。\n原因: ${msg}`);
       } finally {
@@ -994,6 +999,11 @@ const AdminDashboard: React.FC<{
        properties: { title }
      });
      const spreadsheetId = response.result.spreadsheetId;
+     
+     // IMPORTANT FIX:
+     // Get the actual title of the first sheet (e.g. "工作表1" or "Sheet1")
+     // instead of hardcoding 'Sheet1' which causes "Unable to parse range" error.
+     const firstSheetTitle = response.result.sheets?.[0]?.properties?.title || 'Sheet1';
 
      const salesStats = orders.reduce((acc, order) => {
        order.items.forEach(item => {
@@ -1025,7 +1035,7 @@ const AdminDashboard: React.FC<{
 
      await window.gapi.client.sheets.spreadsheets.values.update({
        spreadsheetId,
-       range: 'Sheet1!A1',
+       range: `${firstSheetTitle}!A1`, // Use dynamic sheet name
        valueInputOption: 'USER_ENTERED',
        resource: { values: salesData }
      });
@@ -1069,9 +1079,9 @@ const AdminDashboard: React.FC<{
             </Button>
             <h2 className="text-xl font-bold">後台管理</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => setShowGoogleHelp(true)}>
-              <HelpCircle className="h-5 w-5" />
+          <div className="flex gap-2">
+            <Button variant="ghost" className="p-2" onClick={() => setIsSettingsOpen(true)}>
+              <Settings className="h-5 w-5 text-slate-500" />
             </Button>
             <Button 
               variant="outline" 
@@ -1116,41 +1126,31 @@ const AdminDashboard: React.FC<{
         {activeTab === 'finance' && <FinanceSummary orders={orders} stock={stockHistory} />}
       </div>
 
-      {/* Google Setup Help Modal */}
       <Modal
-        isOpen={showGoogleHelp}
-        onClose={() => setShowGoogleHelp(false)}
-        title="Google 串接設定教學"
-        footer={
-           <Button className="w-full" onClick={() => setShowGoogleHelp(false)}>我瞭解了</Button>
-        }
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        title="API 設定"
+        footer={<Button className="w-full" onClick={saveSettings}>儲存並重整</Button>}
       >
-        <div className="space-y-4 text-sm text-slate-600">
-           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 flex gap-2">
-             <AlertTriangle className="h-5 w-5 shrink-0" />
-             <p>若出現 <strong>Error 400: invalid_request</strong>，代表您尚未授權此網址。</p>
+        <div className="space-y-4 pt-2">
+           <div>
+             <label className="text-xs font-bold text-slate-500 mb-1 block">Google Client ID</label>
+             <Input 
+                value={settingsClientId} 
+                onChange={e => setSettingsClientId(e.target.value)} 
+                placeholder="輸入 Client ID"
+             />
            </div>
-           
-           <ol className="list-decimal pl-5 space-y-2">
-             <li>前往 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-blue-600 underline">Google Cloud Console</a>。</li>
-             <li>點擊您的 <strong>OAuth 2.0 用戶端 ID</strong>。</li>
-             <li>在 <strong>已授權的 JavaScript 來源</strong> 區塊，點擊「新增 URI」。</li>
-             <li>複製並貼上您的網址：</li>
-           </ol>
-
-           <div className="bg-slate-100 p-3 rounded border border-slate-200 font-mono text-slate-800 break-all flex items-center justify-between gap-2">
-             <span>{currentOrigin}</span>
-             <button 
-               onClick={() => {navigator.clipboard.writeText(currentOrigin); alert('已複製！');}}
-               className="p-1.5 hover:bg-white rounded transition-colors text-slate-500"
-               title="複製網址"
-             >
-               <Copy className="h-4 w-4" />
-             </button>
+           <div>
+             <label className="text-xs font-bold text-slate-500 mb-1 block">Google API Key (Optional)</label>
+             <Input 
+                value={settingsApiKey} 
+                onChange={e => setSettingsApiKey(e.target.value)} 
+                placeholder="輸入 API Key"
+             />
            </div>
-
-           <p className="text-xs text-slate-400 pt-2 border-t border-slate-100">
-             設定完成後，Google 需要約 5-10 分鐘更新生效，請稍候再試。
+           <p className="text-xs text-slate-400">
+             修改後請按儲存，網頁將自動重整以套用新設定。
            </p>
         </div>
       </Modal>
