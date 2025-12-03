@@ -68,8 +68,8 @@ const calculateItemTotal = (dish: Dish, addons: Record<string, number>) => {
 };
 
 // --- Google API Config ---
-const GOOGLE_CLIENT_ID = "GOOGLE_CLIENT_ID"; 
-const GOOGLE_API_KEY = ""; 
+const GOOGLE_CLIENT_ID = "808023774748-nlvgh7givl1ph5h611e0hpfn1gggtqqe.apps.googleusercontent.com"; 
+const GOOGLE_API_KEY = "AIzaSyB8hNoU8uEojAgIFACQ3J-g0r7I4-lvxfg"; 
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
