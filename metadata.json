@@ -1,0 +1,5 @@
+{
+  "name": "Tofu POS Mobile",
+  "description": "A mobile-first POS system for a tofu restaurant featuring a shopping cart, customization options, and order simulation.",
+  "requestFramePermissions": []
+}
