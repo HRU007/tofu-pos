@@ -1005,26 +1005,34 @@ const AdminDashboard: React.FC<{
      // instead of hardcoding 'Sheet1' which causes "Unable to parse range" error.
      const firstSheetTitle = response.result.sheets?.[0]?.properties?.title || 'Sheet1';
 
-     const salesStats = orders.reduce((acc, order) => {
-       order.items.forEach(item => {
-         if (!acc[item.dish.name]) {
-             acc[item.dish.name] = { count: 0, price: item.dish.price };
-         }
-         const stat = acc[item.dish.name];
-         if (stat) {
-             stat.count += 1;
-         }
-       });
-       return acc;
-     }, {} as Record<string, {count: number, price: number}>);
-
+     // --- Changed: Detailed Transaction Log instead of Summary ---
      const salesData = [
-       ["商品名稱", "售出數量", "單價", "總額"],
-       ...Object.entries(salesStats).map(([name, data]) => {
-          const d = data as {count: number, price: number};
-          return [name, d.count, d.price, d.count * d.price];
+       ["日期", "時間", "品項名稱", "辣度", "加點內容", "金額"], // Header
+       // Flatten orders into individual items (rows)
+       ...orders.flatMap(order => {
+           const dt = new Date(order.timestamp);
+           const dateStr = dt.toLocaleDateString('zh-TW'); // e.g. 2023/10/25
+           const timeStr = dt.toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'}); // e.g. 14:30
+
+           return order.items.map(item => {
+               // Format Add-ons: "肉片 x1, 鴨血 x2"
+               const addonDetails = Object.entries(item.addons).map(([id, qty]) => {
+                   const a = ADD_ONS.find(addon => addon.id === id);
+                   return a ? `${a.name}x${qty}` : '';
+               }).filter(s => s !== '').join(', ');
+
+               return [
+                   dateStr,
+                   timeStr,
+                   item.dish.name,
+                   item.spice,
+                   addonDetails || '無', // Show "無" if no add-ons
+                   item.totalPrice // This price includes add-ons
+               ];
+           });
        })
      ];
+     // -----------------------------------------------------------
 
      const stockData = [
        ["日期", "品項", "數量", "單位", "成本"],
