@@ -961,19 +961,25 @@ const AdminDashboard: React.FC<{
     tokenClient.callback = async (resp: any) => {
       if (resp.error) {
         setIsExporting(false);
-        // Do not alert purely on resp.error as it might be 'access_denied' by user closing popup
-        if (resp.error !== 'access_denied') {
-          console.error("Google Auth Error:", resp);
-          alert(`Google 登入失敗: ${resp.error}\n請點擊旁邊的問號圖示查看設定教學。`);
-        }
+        console.error("OAuth Error:", resp);
+        alert(`Google 登入失敗: ${resp.error}`);
         return;
       }
       try {
+        // --- 關鍵修復開始 ---
+        // 重要：必須顯式設定 Token 才能擁有寫入權限
+        if (window.gapi.client) {
+            window.gapi.client.setToken(resp);
+        }
+        // --- 關鍵修復結束 ---
+        
         await createAndPopulateSheet();
         alert("成功建立試算表並上傳資料！");
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        alert("上傳失敗，請檢查控制台錯誤訊息。");
+        // 優化錯誤顯示
+        const msg = err.result?.error?.message || err.message || "未知錯誤";
+        alert(`上傳失敗，請檢查控制台錯誤訊息。\n原因: ${msg}`);
       } finally {
         setIsExporting(false);
       }
