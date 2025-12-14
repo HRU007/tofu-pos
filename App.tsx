@@ -3,7 +3,7 @@ import {
   ShoppingCart, Plus, Minus, Trash2, Send, CheckCircle, ChefHat, 
   Flame, Utensils, LayoutDashboard, Package, DollarSign, 
   BarChart3, PieChart as PieChartIcon, Calendar, History, ArrowLeft, 
-  UploadCloud, FileSpreadsheet, Pencil, Clock, Receipt, AlertTriangle, Edit, Settings
+  UploadCloud, FileSpreadsheet, Pencil, Clock, Receipt, AlertTriangle, Edit, Settings, X
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
@@ -20,8 +20,8 @@ const MAIN_DISHES: Dish[] = [
   { id: 'm2', name: '麻辣總匯', price: 80 },
   { id: 'm4', name: '綜合煲', price: 60 },
   { id: 'm8', name: '綜合麵', price: 60 },
-  { id: 'm3', name: '香豆腐煲', price: 60 },
-  { id: 'm7', name: '香豆腐麵', price: 60 },
+  { id: 'm3', name: '豆腐煲', price: 60 }, // Renamed from 香豆腐煲
+  { id: 'm7', name: '豆腐麵', price: 60 }, // Renamed from 香豆腐麵
   { id: 'm5', name: '鴨血煲', price: 60 },
   { id: 'm9', name: '鴨血麵', price: 60 },
   { id: 'm10', name: '乾泡麵', price: 60 },
@@ -37,6 +37,7 @@ const SPICINESS_LEVELS: SpiceLevel[] = [
 ];
 
 const ADD_ONS: Addon[] = [
+  { id: 'a0', name: '升級手工豆腐', price: 10 },
   { id: 'a1', name: '豬肉片', price: 30 },
   { id: 'a2', name: '牛肉片', price: 30 },
   { id: 'a3', name: '臭豆腐', price: 20 },
@@ -393,7 +394,13 @@ const SalesAnalysis: React.FC<{
                       <span className="font-bold text-slate-800">${order.totalAmount}</span>
                    </div>
                    <div className="text-xs text-slate-500 truncate max-w-[200px]">
-                     {order.items.map(i => i.dish.name).join(', ')}
+                     {order.items.map(i => {
+                        const addonStr = Object.entries(i.addons).map(([k, v]) => {
+                          const a = ADD_ONS.find(add => add.id === k);
+                          return a ? `${a.name}x${v}` : '';
+                        }).filter(Boolean).join(' ');
+                        return i.dish.name + (addonStr ? ` (+${addonStr})` : '');
+                     }).join(', ')}
                    </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -607,8 +614,9 @@ const StockManagement: React.FC<{
   onUpdate: (entry: StockEntry) => void,
   onDelete: (id: string) => void,
   frequentItems: FrequentStockItem[],
-  onNewItem: (item: FrequentStockItem) => void
-}> = ({ history, onAdd, onUpdate, onDelete, frequentItems, onNewItem }) => {
+  onNewItem: (item: FrequentStockItem) => void,
+  onDeleteFrequentItem: (name: string) => void
+}> = ({ history, onAdd, onUpdate, onDelete, frequentItems, onNewItem, onDeleteFrequentItem }) => {
   const [name, setName] = useState('');
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
@@ -712,7 +720,7 @@ const StockManagement: React.FC<{
         <div className="p-4 bg-slate-800/50">
            <div className="text-slate-400 text-xs font-bold uppercase mb-2">品項進貨總計</div>
            <div className="grid grid-cols-2 gap-x-4 gap-y-2 max-h-32 overflow-y-auto custom-scrollbar">
-              {Object.entries(summary.itemStats).map(([name, data]) => (
+              {Object.entries(summary.itemStats).map(([name, data]: [string, { qty: number, unit: string }]) => (
                 <div key={name} className="flex justify-between text-sm border-b border-slate-700/50 pb-1 last:border-0">
                    <span className="text-slate-200">{name}</span>
                    <span className="font-mono text-slate-400">{data.qty} {data.unit}</span>
@@ -725,16 +733,33 @@ const StockManagement: React.FC<{
       <Card className="p-4 space-y-3">
          <h3 className="font-bold text-slate-800 flex items-center gap-2"><Package className="h-4 w-4" /> 快速帶入</h3>
          <div className="flex flex-wrap gap-2">
-            {quickItems.map(item => (
-              <button 
-                key={item.name}
-                onClick={() => handleQuickAdd(item.name, item.unit)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors"
-              >
-                {item.name}
-              </button>
-            ))}
+            {quickItems.map((item, index) => {
+              const isCustom = frequentItems.some(f => f.name === item.name);
+              return (
+                <button 
+                  key={`${item.name}-${index}`}
+                  onClick={() => handleQuickAdd(item.name, item.unit)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-sm font-medium transition-colors flex items-center gap-2 group relative pr-7"
+                >
+                  {item.name}
+                  {isCustom && (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteFrequentItem(item.name);
+                      }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-red-100 text-slate-400 hover:text-red-500 transition-colors"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
          </div>
+         <p className="text-xs text-slate-400 pl-1">
+            * 點擊 X 可移除自定義的常用項目
+         </p>
       </Card>
 
       <Card className="p-4 space-y-4 border-blue-200 shadow-blue-100">
@@ -766,7 +791,7 @@ const StockManagement: React.FC<{
 
       <div className="space-y-4">
         <h3 className="font-bold text-slate-800 flex items-center gap-2"><History className="h-4 w-4" /> 近期進貨</h3>
-        {Object.entries(groupedHistory).map(([date, entries]) => (
+        {Object.entries(groupedHistory).map(([date, entries]: [string, StockEntry[]]) => (
            <div key={date}>
               <div className="text-xs font-bold text-slate-400 mb-2 mt-4 ml-1">{date}</div>
               <div className="space-y-2">
@@ -907,6 +932,7 @@ const AdminDashboard: React.FC<{
   setStockHistory: React.Dispatch<React.SetStateAction<StockEntry[]>>;
   frequentStockItems: FrequentStockItem[];
   setFrequentStockItems: React.Dispatch<React.SetStateAction<FrequentStockItem[]>>;
+  onDeleteFrequentItem: (name: string) => void;
   onBack: () => void;
 }> = ({ 
   activeTab, 
@@ -917,6 +943,7 @@ const AdminDashboard: React.FC<{
   setStockHistory,
   frequentStockItems,
   setFrequentStockItems,
+  onDeleteFrequentItem,
   onBack 
 }) => {
   const [isExporting, setIsExporting] = useState(false);
@@ -1129,6 +1156,7 @@ const AdminDashboard: React.FC<{
             onDelete={handleDeleteStock}
             frequentItems={frequentStockItems}
             onNewItem={(item) => setFrequentStockItems([...frequentStockItems, item])}
+            onDeleteFrequentItem={onDeleteFrequentItem}
           />
         )}
         {activeTab === 'finance' && <FinanceSummary orders={orders} stock={stockHistory} />}
@@ -1286,6 +1314,10 @@ const App: React.FC = () => {
     }, 200);
   };
 
+  const handleDeleteFrequentItem = (name: string) => {
+    setFrequentStockItems(prev => prev.filter(item => item.name !== name));
+  };
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 max-w-md mx-auto shadow-2xl overflow-hidden border-x border-slate-200 relative">
       {view === 'pos' ? (
@@ -1365,6 +1397,7 @@ const App: React.FC = () => {
           setStockHistory={setStockHistory}
           frequentStockItems={frequentStockItems}
           setFrequentStockItems={setFrequentStockItems}
+          onDeleteFrequentItem={handleDeleteFrequentItem}
           onBack={() => setView('pos')}
         />
       )}
