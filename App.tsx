@@ -71,7 +71,7 @@ const calculateItemTotal = (dish: Dish, addons: Record<string, number>) => {
 // --- Google API Config ---
 // Default fallback keys (can be overridden by user settings)
 const DEFAULT_CLIENT_ID = "808023774748-nlvgh7givl1ph5h611e0hpfn1gggtqqe.apps.googleusercontent.com"; 
-const DEFAULT_API_KEY = ""; 
+const DEFAULT_API_KEY = "AIzaSyB8hNoU8uEojAgIFACQ3J-g0r7I4-lvxfg"; 
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
